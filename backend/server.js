@@ -5,13 +5,11 @@ import yahooFinance from "yahoo-finance2";
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || "*" }));
 app.use(express.json());
 
-// ── CACHE simple en memoria (5 min) ──────────────────────────────────────────
 const cache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+const CACHE_TTL = 5 * 60 * 1000;
 
 function getCache(key) {
   const entry = cache.get(key);
@@ -27,7 +25,6 @@ function setCache(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-// ── HELPER: limpia ticker para Yahoo Finance ──────────────────────────────────
 function cleanTicker(ticker) {
   const cryptoMap = {
     BTC: "BTC-USD",
@@ -44,7 +41,6 @@ function cleanTicker(ticker) {
   return cryptoMap[ticker] || commodMap[ticker] || ticker;
 }
 
-// ── GET /quote?tickers=NVDA,AAPL,MSFT ─────────────────────────────────────────
 app.get("/quote", async (req, res) => {
   const raw = req.query.tickers || "";
   const tickers = raw
@@ -108,8 +104,6 @@ app.get("/quote", async (req, res) => {
   }
 });
 
-// ── GET /history?ticker=NVDA&period=1y ────────────────────────────────────────
-// period: 1mo | 3mo | 6mo | 1y | 2y | 5y
 app.get("/history", async (req, res) => {
   const ticker = (req.query.ticker || "").trim().toUpperCase();
   const period = req.query.period || "1y";
@@ -161,8 +155,6 @@ app.get("/history", async (req, res) => {
   }
 });
 
-// ── GET /markowitz?tickers=NVDA,AAPL,MSFT&period=2y ──────────────────────────
-// Devuelve retornos para calcular covarianza en el frontend
 app.get("/markowitz", async (req, res) => {
   const raw = req.query.tickers || "";
   const tickers = raw
@@ -251,7 +243,6 @@ app.get("/markowitz", async (req, res) => {
   }
 });
 
-// ── GET /search?q=apple ───────────────────────────────────────────────────────
 app.get("/search", async (req, res) => {
   const query = (req.query.q || "").trim();
 
@@ -276,7 +267,6 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// ── Health checks ─────────────────────────────────────────────────────────────
 app.get("/", (_req, res) => {
   res.json({ status: "ok", service: "QuickInvest API" });
 });
@@ -285,7 +275,6 @@ app.get("/health", (_req, res) => {
   res.status(200).send("ok");
 });
 
-// ── Startup ───────────────────────────────────────────────────────────────────
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ QuickInvest API running on port ${PORT}`);
 });
