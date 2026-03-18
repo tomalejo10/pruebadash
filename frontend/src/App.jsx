@@ -4,66 +4,45 @@ import LoginPage from "./pages/LoginPage";
 import AdvisorApp from "./pages/AdvisorApp";
 import ClientApp from "./pages/ClientApp";
 import RiskProfileSetup from "./pages/RiskProfileSetup";
-import AuthCallback from "./pages/AuthCallback";
 
 export default function App() {
-  const [session, setSession] = useState(null);
+  const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const isCallback = window.location.pathname === "/auth/callback";
 
   useEffect(() => {
-    if (isCallback) { setLoading(false); return; }
-
-    // Timeout de seguridad — si en 8 seg no cargó, mostrar login
-    const timeout = setTimeout(() => setLoading(false), 8000);
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) loadProfile(session.user).finally(() => clearTimeout(timeout));
-      else { setLoading(false); clearTimeout(timeout); }
+      if (session) loadProfile(session.user);
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_OUT") { setSession(null); setProfile(null); setLoading(false); }
-      if (event === "SIGNED_IN" && session) {
-        setSession(session);
-        await loadProfile(session.user);
-        clearTimeout(timeout);
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      if (session) loadProfile(session.user);
+      else setProfile(null);
     });
-
-    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
-  }, [isCallback]);
+    return () => subscription.unsubscribe();
+  }, []);
 
   async function loadProfile(user) {
-    try {
-      let { data } = await getProfile(user.id);
-      if (!data) {
-        const isAdvisor = user.email === import.meta.env.VITE_ADVISOR_EMAIL;
-        const { data: newProfile } = await upsertProfile({
-          id: user.id, email: user.email,
-          full_name: user.user_metadata?.full_name || user.email,
-          role: isAdvisor ? "advisor" : "client",
-        });
-        data = newProfile;
-      }
-      setProfile(data);
-    } catch(e) {
-      console.error("loadProfile error:", e);
-    } finally {
-      setLoading(false);
+    let { data } = await getProfile(user.id);
+    if (!data) {
+      const { data: np } = await upsertProfile({
+        id: user.id, email: user.email,
+        full_name: user.user_metadata?.full_name || user.email,
+        role: user.email === import.meta.env.VITE_ADVISOR_EMAIL ? "advisor" : "client",
+      });
+      data = np;
     }
+    setProfile(data);
   }
 
-  if (isCallback) return <AuthCallback />;
-  if (loading) return <LoadingScreen />;
+  // session === undefined significa que todavía estamos cargando
+  if (session === undefined) return <LoadingScreen />;
   if (!session) return <LoginPage />;
-  if (profile?.role === "client" && !profile?.risk_profile)
+  if (!profile) return <LoadingScreen />;
+  if (profile.role === "client" && !profile.risk_profile)
     return <RiskProfileSetup user={session.user} profile={profile} onComplete={setProfile} />;
-  if (profile?.role === "advisor") return <AdvisorApp session={session} profile={profile} />;
-  if (profile?.role === "client") return <ClientApp session={session} profile={profile} onProfileUpdate={setProfile} />;
-  return <LoginPage />;
+  if (profile.role === "advisor") return <AdvisorApp session={session} profile={profile} />;
+  return <ClientApp session={session} profile={profile} onProfileUpdate={setProfile} />;
 }
 
 function LoadingScreen() {
