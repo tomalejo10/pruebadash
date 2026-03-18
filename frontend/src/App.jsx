@@ -15,43 +15,45 @@ export default function App() {
   useEffect(() => {
     if (isCallback) { setLoading(false); return; }
 
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) { console.error("Session error:", error); setLoading(false); return; }
+    // Timeout de seguridad — si en 8 seg no cargó, mostrar login
+    const timeout = setTimeout(() => setLoading(false), 8000);
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) loadProfile(session.user);
-      else setLoading(false);
+      if (session) loadProfile(session.user).finally(() => clearTimeout(timeout));
+      else { setLoading(false); clearTimeout(timeout); }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth event:", event, session?.user?.email);
-      setSession(session);
-      if (session) await loadProfile(session.user);
-      else { setProfile(null); setLoading(false); }
+      if (event === "SIGNED_OUT") { setSession(null); setProfile(null); setLoading(false); }
+      if (event === "SIGNED_IN" && session) {
+        setSession(session);
+        await loadProfile(session.user);
+        clearTimeout(timeout);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
   }, [isCallback]);
 
   async function loadProfile(user) {
-    setLoading(true);
     try {
-      let { data, error } = await getProfile(user.id);
-      console.log("Profile:", data, "Error:", error);
+      let { data } = await getProfile(user.id);
       if (!data) {
         const isAdvisor = user.email === import.meta.env.VITE_ADVISOR_EMAIL;
-        const { data: newProfile, error: upsertError } = await upsertProfile({
+        const { data: newProfile } = await upsertProfile({
           id: user.id, email: user.email,
           full_name: user.user_metadata?.full_name || user.email,
           role: isAdvisor ? "advisor" : "client",
         });
-        console.log("New profile:", newProfile, "Upsert error:", upsertError);
         data = newProfile;
       }
       setProfile(data);
     } catch(e) {
       console.error("loadProfile error:", e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   if (isCallback) return <AuthCallback />;
@@ -67,7 +69,7 @@ export default function App() {
 function LoadingScreen() {
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#07090F", flexDirection:"column", gap:16 }}>
-      <div style={{ color:"#26ECC8", fontSize:28, fontWeight:800, letterSpacing:"-1px" }}>QuickInvest</div>
+      <div style={{ color:"#26ECC8", fontSize:28, fontWeight:800 }}>QuickInvest</div>
       <div style={{ color:"#64748B", fontSize:13 }}>Cargando...</div>
     </div>
   );
