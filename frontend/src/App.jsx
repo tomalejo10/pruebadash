@@ -10,13 +10,11 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // Manejar callback de OAuth
-  if (window.location.pathname === "/auth/callback") {
-    return <AuthCallback />;
-  }
+  const isCallback = window.location.pathname === "/auth/callback";
 
   useEffect(() => {
+    if (isCallback) return;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) loadProfile(session.user);
@@ -30,7 +28,7 @@ export default function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isCallback]);
 
   async function loadProfile(user) {
     setLoading(true);
@@ -48,6 +46,7 @@ export default function App() {
     setLoading(false);
   }
 
+  if (isCallback) return <AuthCallback />;
   if (loading) return <LoadingScreen />;
   if (!session) return <LoginPage />;
   if (profile?.role === "client" && !profile?.risk_profile)
