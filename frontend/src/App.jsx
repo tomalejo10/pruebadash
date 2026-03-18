@@ -13,15 +13,17 @@ export default function App() {
   const isCallback = window.location.pathname === "/auth/callback";
 
   useEffect(() => {
-    if (isCallback) return;
+    if (isCallback) { setLoading(false); return; }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) { console.error("Session error:", error); setLoading(false); return; }
       setSession(session);
       if (session) loadProfile(session.user);
       else setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth event:", event, session?.user?.email);
       setSession(session);
       if (session) await loadProfile(session.user);
       else { setProfile(null); setLoading(false); }
@@ -32,17 +34,23 @@ export default function App() {
 
   async function loadProfile(user) {
     setLoading(true);
-    let { data } = await getProfile(user.id);
-    if (!data) {
-      const isAdvisor = user.email === import.meta.env.VITE_ADVISOR_EMAIL;
-      const { data: newProfile } = await upsertProfile({
-        id: user.id, email: user.email,
-        full_name: user.user_metadata?.full_name || user.email,
-        role: isAdvisor ? "advisor" : "client",
-      });
-      data = newProfile;
+    try {
+      let { data, error } = await getProfile(user.id);
+      console.log("Profile:", data, "Error:", error);
+      if (!data) {
+        const isAdvisor = user.email === import.meta.env.VITE_ADVISOR_EMAIL;
+        const { data: newProfile, error: upsertError } = await upsertProfile({
+          id: user.id, email: user.email,
+          full_name: user.user_metadata?.full_name || user.email,
+          role: isAdvisor ? "advisor" : "client",
+        });
+        console.log("New profile:", newProfile, "Upsert error:", upsertError);
+        data = newProfile;
+      }
+      setProfile(data);
+    } catch(e) {
+      console.error("loadProfile error:", e);
     }
-    setProfile(data);
     setLoading(false);
   }
 
@@ -52,7 +60,8 @@ export default function App() {
   if (profile?.role === "client" && !profile?.risk_profile)
     return <RiskProfileSetup user={session.user} profile={profile} onComplete={setProfile} />;
   if (profile?.role === "advisor") return <AdvisorApp session={session} profile={profile} />;
-  return <ClientApp session={session} profile={profile} onProfileUpdate={setProfile} />;
+  if (profile?.role === "client") return <ClientApp session={session} profile={profile} onProfileUpdate={setProfile} />;
+  return <LoginPage />;
 }
 
 function LoadingScreen() {
