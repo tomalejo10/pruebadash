@@ -3,7 +3,6 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  // En dev local, esto proxea /api → tu backend local
   server: {
     proxy: {
       "/api": {
