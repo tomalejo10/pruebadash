@@ -8,9 +8,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    storage: window.localStorage,
-    storageKey: "quickinvest-auth",
-    flowType: "implicit",
+    flowType: "pkce",
   }
 });
 
@@ -18,8 +16,7 @@ export async function signInWithGoogle() {
   return supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: window.location.origin,
-      queryParams: { access_type: "offline", prompt: "consent" }
+      redirectTo: `${window.location.origin}/auth/callback`,
     },
   });
 }

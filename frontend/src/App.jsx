@@ -4,18 +4,19 @@ import LoginPage from "./pages/LoginPage";
 import AdvisorApp from "./pages/AdvisorApp";
 import ClientApp from "./pages/ClientApp";
 import RiskProfileSetup from "./pages/RiskProfileSetup";
+import AuthCallback from "./pages/AuthCallback";
 
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Limpiar hash de URL después de OAuth redirect
-    if (window.location.hash.includes("access_token")) {
-      window.history.replaceState(null, "", window.location.pathname);
-    }
+  // Manejar callback de OAuth
+  if (window.location.pathname === "/auth/callback") {
+    return <AuthCallback />;
+  }
 
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) loadProfile(session.user);
@@ -60,7 +61,6 @@ function LoadingScreen() {
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#07090F", flexDirection:"column", gap:16 }}>
       <div style={{ color:"#26ECC8", fontSize:28, fontWeight:800, letterSpacing:"-1px" }}>QuickInvest</div>
       <div style={{ color:"#64748B", fontSize:13 }}>Cargando...</div>
-      <style>{`@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}`}</style>
     </div>
   );
 }
