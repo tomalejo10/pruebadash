@@ -3,13 +3,27 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    storage: window.localStorage,
+    storageKey: "quickinvest-auth",
+    flowType: "implicit",
+  }
+});
 
 export async function signInWithGoogle() {
-  return supabase.auth.signInWithOAuth({ provider:"google", options:{ redirectTo: window.location.origin } });
+  return supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: window.location.origin,
+      queryParams: { access_type: "offline", prompt: "consent" }
+    },
+  });
 }
 export async function signOut() { return supabase.auth.signOut(); }
-
 export async function getProfile(userId) {
   const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
   return { data, error };
