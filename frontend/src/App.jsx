@@ -11,16 +11,23 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Limpiar hash de URL después de OAuth redirect
+    if (window.location.hash.includes("access_token")) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) loadProfile(session.user);
       else setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       if (session) await loadProfile(session.user);
       else { setProfile(null); setLoading(false); }
     });
+
     return () => subscription.unsubscribe();
   }, []);
 
