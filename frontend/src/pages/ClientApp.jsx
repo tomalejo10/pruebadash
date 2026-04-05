@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import PortfolioTracker from "./PortfolioTracker";
 import { signOut, getFavorites, toggleFavorite, getAlerts, createAlert, deleteAlert, getPortfolio, upsertPortfolioAsset, deletePortfolioAsset, upsertProfile, supabase } from "../lib/supabase";
 
 const C = { bg:"#07090F", card:"#0D1117", card2:"#111720", border:"#1C2333", cyan:"#26ECC8", cyanDim:"rgba(38,236,200,0.12)", text:"#E2E8F0", muted:"#64748B", green:"#4ADE80", red:"#F87171", yellow:"#FFD166", mono:"'JetBrains Mono',monospace" };
@@ -50,7 +51,7 @@ export default function ClientApp({ session, profile, onProfileUpdate }) {
       </div>
       <div style={{ flex:1, overflowY:"auto", padding:"28px 32px" }}>
         {tab==="watchlist" && <WatchlistTab userId={session.user.id} />}
-        {tab==="cartera"   && <CarteraTab userId={session.user.id} profile={profile} />}
+        {tab==="cartera"   && <PortfolioTracker userId={session.user.id} profile={profile} />}
         {tab==="alertas"   && <AlertasTab userId={session.user.id} />}
         {tab==="salud"     && <SaludCartera userId={session.user.id} profile={profile} />}
         {tab==="perfil"    && <PerfilTab profile={profile} userId={session.user.id} onUpdate={onProfileUpdate} />}
