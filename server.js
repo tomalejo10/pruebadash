@@ -19,14 +19,14 @@ function fetchJSON(url) {
   return new Promise((resolve,reject) => {
     const req = https.get(url,{headers:{"User-Agent":"Mozilla/5.0","Accept":"application/json"}},(res) => {
       let data=""; res.on("data",c=>data+=c);
-      res.on("end",()=>{try{resolve(JSON.parse(data))}catch(e){reject(new Error("Parse error: "+data.slice(0,100)))}});
+      res.on("end",()=>{try{resolve(JSON.parse(data))}catch(e){reject(new Error("Parse error"))}});
     });
     req.on("error",reject);
     req.setTimeout(15000,()=>{req.destroy();reject(new Error("Timeout"))});
   });
 }
 
-// ── Cache global de data912 ───────────────────────────────────────────────────
+// ── Cache global data912 ──────────────────────────────────────────────────────
 let d912 = { stocks:{}, cedears:{}, bonds:{}, mep:null, ccl:[], ts:0 };
 
 async function refreshD912() {
@@ -40,33 +40,41 @@ async function refreshD912() {
       fetchJSON("https://data912.com/live/mep"),
       fetchJSON("https://data912.com/live/ccl"),
     ]);
-    if (stocks.status==="fulfilled" && Array.isArray(stocks.value))
-      d912.stocks = Object.fromEntries(stocks.value.map(s=>[s.symbol,s]));
-    if (cedears.status==="fulfilled" && Array.isArray(cedears.value))
-      d912.cedears = Object.fromEntries(cedears.value.map(s=>[s.symbol,s]));
-    if (bonds.status==="fulfilled" && Array.isArray(bonds.value))
-      d912.bonds = Object.fromEntries(bonds.value.map(s=>[s.symbol,s]));
-    if (mep.status==="fulfilled" && Array.isArray(mep.value))
-      d912.mep = mep.value[0] || null;
-    if (ccl.status==="fulfilled" && Array.isArray(ccl.value))
-      d912.ccl = ccl.value;
+    if (stocks.status==="fulfilled"  && Array.isArray(stocks.value))  d912.stocks  = Object.fromEntries(stocks.value.map(s=>[s.symbol,s]));
+    if (cedears.status==="fulfilled" && Array.isArray(cedears.value)) d912.cedears = Object.fromEntries(cedears.value.map(s=>[s.symbol,s]));
+    if (bonds.status==="fulfilled"   && Array.isArray(bonds.value))   d912.bonds   = Object.fromEntries(bonds.value.map(s=>[s.symbol,s]));
+    if (mep.status==="fulfilled"     && Array.isArray(mep.value))     d912.mep     = mep.value[0] || null;
+    if (ccl.status==="fulfilled"     && Array.isArray(ccl.value))     d912.ccl     = ccl.value;
     d912.ts = Date.now();
     console.log(`✅ data912: ${Object.keys(d912.stocks).length} stocks, ${Object.keys(d912.cedears).length} cedears, ${Object.keys(d912.bonds).length} bonds`);
-  } catch(e) { console.error("data912 refresh error:", e.message); }
+  } catch(e) { console.error("data912 error:", e.message); }
 }
 
 function d912ToQuote(s, ticker) {
   return { ticker, price:s.c||null, change:null, changePct:s.pct_change||null, volume:s.q_op||null, name:ticker, currency:"ARS", bid:s.px_bid||null, ask:s.px_ask||null };
 }
 
+// ── Cripto via Binance ────────────────────────────────────────────────────────
+const CRYPTO_LIST = ["BTC","ETH","SOL","XRP","BNB","ADA","DOGE","AVAX","MATIC","DOT"];
+
+async function getCryptoQuotes(symbols) {
+  const result = {};
+  await Promise.all(symbols.map(async s => {
+    try {
+      const data = await fetchJSON(`https://api.binance.com/api/v3/ticker/24hr?symbol=${s}USDT`);
+      result[s] = { ticker:s, price:parseFloat(data.lastPrice), change:parseFloat(data.priceChange), changePct:parseFloat(data.priceChangePercent), volume:parseFloat(data.quoteVolume), name:s, currency:"USD" };
+    } catch(e) { result[s] = { ticker:s, error:"No data" }; }
+  }));
+  return result;
+}
+
 // ── Health ────────────────────────────────────────────────────────────────────
-app.get("/", (req,res) => res.json({ status:"ok", ts:Date.now() }));
+app.get("/", (req,res) => res.json({ status:"ok", ts:Date.now(), endpoints:["/mep","/ccl","/quote","/crypto","/historical","/symbols"] }));
 
 // ── GET /mep ──────────────────────────────────────────────────────────────────
 app.get("/mep", async (req,res) => {
   await refreshD912();
-  if (d912.mep) return res.json(d912.mep);
-  res.status(503).json({ error:"MEP not available" });
+  res.json(d912.mep || { error:"MEP not available - mercado cerrado" });
 });
 
 // ── GET /ccl ──────────────────────────────────────────────────────────────────
@@ -75,13 +83,14 @@ app.get("/ccl", async (req,res) => {
   res.json(d912.ccl);
 });
 
-// ── GET /symbols — todos los tickers disponibles ──────────────────────────────
+// ── GET /symbols ──────────────────────────────────────────────────────────────
 app.get("/symbols", async (req,res) => {
   await refreshD912();
   const all = [
     ...Object.keys(d912.stocks).map(s=>({symbol:s,type:"stock",currency:"ARS"})),
     ...Object.keys(d912.cedears).map(s=>({symbol:s,type:"cedear",currency:"ARS"})),
     ...Object.keys(d912.bonds).map(s=>({symbol:s,type:"bond",currency:"ARS"})),
+    ...CRYPTO_LIST.map(s=>({symbol:s,type:"crypto",currency:"USD"})),
   ];
   res.json(all);
 });
@@ -97,22 +106,32 @@ app.get("/quote", async (req,res) => {
 
   await refreshD912();
   const result = {};
+  const cryptoTickers = [];
 
   for (const ticker of tickers) {
-    if (d912.stocks[ticker])  { result[ticker] = d912ToQuote(d912.stocks[ticker], ticker); continue; }
-    if (d912.cedears[ticker]) { result[ticker] = d912ToQuote(d912.cedears[ticker], ticker); continue; }
-    if (d912.bonds[ticker])   { result[ticker] = d912ToQuote(d912.bonds[ticker], ticker); continue; }
-    // fallback: intentar en data912 usa_stocks
-    try {
-      const usa = await fetchJSON(`https://data912.com/live/usa_stocks`);
-      if (Array.isArray(usa)) {
-        const found = usa.find(s=>s.symbol===ticker);
-        if (found) { result[ticker] = d912ToQuote(found, ticker); continue; }
-      }
-    } catch(e) {}
-    result[ticker] = { ticker, error:"No data" };
+    if (d912.stocks[ticker])        { result[ticker] = d912ToQuote(d912.stocks[ticker], ticker); continue; }
+    if (d912.cedears[ticker])       { result[ticker] = d912ToQuote(d912.cedears[ticker], ticker); continue; }
+    if (d912.bonds[ticker])         { result[ticker] = d912ToQuote(d912.bonds[ticker], ticker); continue; }
+    if (CRYPTO_LIST.includes(ticker)) { cryptoTickers.push(ticker); continue; }
+    result[ticker] = { ticker, error:"Not found" };
   }
 
+  if (cryptoTickers.length > 0) {
+    const cryptoData = await getCryptoQuotes(cryptoTickers);
+    Object.assign(result, cryptoData);
+  }
+
+  setCache(key, result);
+  res.json(result);
+});
+
+// ── GET /crypto?symbols=BTC,ETH ───────────────────────────────────────────────
+app.get("/crypto", async (req,res) => {
+  const symbols = (req.query.symbols||"BTC,ETH,SOL,XRP").split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
+  const key = "crypto_"+symbols.sort().join(",");
+  const cached = getCache(key);
+  if (cached) return res.json(cached);
+  const result = await getCryptoQuotes(symbols);
   setCache(key, result);
   res.json(result);
 });
@@ -120,7 +139,7 @@ app.get("/quote", async (req,res) => {
 // ── GET /historical?ticker=GGAL&type=stock ────────────────────────────────────
 app.get("/historical", async (req,res) => {
   const ticker = (req.query.ticker||"").trim().toUpperCase();
-  const type = req.query.type || "stock"; // stock | cedear | bond
+  const type = req.query.type || "stock";
   if (!ticker) return res.status(400).json({ error:"No ticker" });
 
   const key = `hist_${ticker}_${type}`;
