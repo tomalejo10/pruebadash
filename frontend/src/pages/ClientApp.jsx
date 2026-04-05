@@ -407,11 +407,11 @@ function PerfilTab({ profile, userId, onUpdate }) {
               <div style={{ fontSize:13, fontWeight:600 }}>membresiaparainversores@gmail.com</div>
             </div>
           </a>
-          <a href="https://t.me/quickinvest" target="_blank" rel="noreferrer" style={{ display:"flex", alignItems:"center", gap:10, background:C.card2, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 16px", textDecoration:"none", color:C.text }}>
+          <a href="https://t.me/+Rk28M9F2HU4zNjkx" target="_blank" rel="noreferrer" style={{ display:"flex", alignItems:"center", gap:10, background:C.card2, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 16px", textDecoration:"none", color:C.text }}>
             <span style={{ fontSize:20 }}>💬</span>
             <div>
               <div style={{ fontSize:12, color:C.muted, marginBottom:2 }}>Canal Telegram</div>
-              <div style={{ fontSize:13, fontWeight:600 }}>QuickInvest Membresía</div>
+              <div style={{ fontSize:13, fontWeight:600 }}>Simplemente Inversores</div>
             </div>
           </a>
         </div>
