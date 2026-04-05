@@ -1,8 +1,4 @@
-// ── Apunta al backend de Railway en producción,
-//    o al proxy local de Vite en desarrollo
-const BASE = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL
-  : "/api";
+const BASE = import.meta.env.VITE_API_URL || "/api";
 
 async function apiFetch(path) {
   const res = await fetch(`${BASE}${path}`);
@@ -10,23 +6,20 @@ async function apiFetch(path) {
   return res.json();
 }
 
-// Cotizaciones actuales (precio, cambio, volumen, fundamentals)
-export async function getQuotes(tickers) {
-  return apiFetch(`/quote?tickers=${tickers.join(",")}`);
-}
+// Cotizaciones — AR stocks, cedears, bonos + cripto
+export const getQuotes = (tickers) => apiFetch(`/quote?tickers=${tickers.join(",")}`);
 
-// Histórico OHLCV de un ticker
-// period: "1mo" | "3mo" | "6mo" | "1y" | "2y" | "5y"
-export async function getHistory(ticker, period = "1y") {
-  return apiFetch(`/history?ticker=${ticker}&period=${period}`);
-}
+// Solo cripto via Binance
+export const getCrypto = (symbols) => apiFetch(`/crypto?symbols=${symbols.join(",")}`);
 
-// Datos de retornos mensuales para Markowitz real
-export async function getMarkowitzData(tickers, period = "2y") {
-  return apiFetch(`/markowitz?tickers=${tickers.join(",")}&period=${period}`);
-}
+// Dólar MEP
+export const getMEP = () => apiFetch(`/mep`);
 
-// Búsqueda de tickers
-export async function searchTicker(query) {
-  return apiFetch(`/search?q=${encodeURIComponent(query)}`);
-}
+// Dólar CCL
+export const getCCL = () => apiFetch(`/ccl`);
+
+// Histórico de un ticker
+export const getHistorical = (ticker, type = "cedear") => apiFetch(`/historical?ticker=${ticker}&type=${type}`);
+
+// Todos los símbolos disponibles
+export const getSymbols = () => apiFetch(`/symbols`);
